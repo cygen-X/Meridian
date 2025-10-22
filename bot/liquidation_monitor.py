@@ -137,11 +137,19 @@ class LiquidationMonitor:
     async def _fetch_wallet_data(self, wallet_address: str):
         """Fetch wallet data from REST API"""
         try:
+            logger.info(f"Fetching data for wallet {wallet_address}")
+
+            # Fetch accounts first
+            accounts = await self.reya_client.get_wallet_accounts(wallet_address)
+            logger.info(f"Got {len(accounts) if accounts else 0} accounts for {wallet_address}")
+
             # Fetch positions
             positions_data = await self.reya_client.get_wallet_positions(wallet_address)
+            logger.info(f"Got {len(positions_data) if positions_data else 0} positions for {wallet_address}")
 
             # Fetch balances
             balance_data = await self.reya_client.get_wallet_balances(wallet_address)
+            logger.info(f"Got balance data for {wallet_address}: {balance_data}")
 
             # Process data
             if balance_data:
