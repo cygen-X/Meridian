@@ -329,10 +329,52 @@ mypy .
 
 ### Option 1: Railway.app (Recommended)
 
-1. Push code to GitHub
-2. Connect GitHub repo to [Railway](https://railway.app)
-3. Set environment variables in Railway dashboard
-4. Deploy (auto-deploys on git push)
+1. **Push code to GitHub**
+   ```bash
+   git push origin main
+   ```
+
+2. **Connect to Railway**
+   - Go to [Railway.app](https://railway.app)
+   - Click "New Project" → "Deploy from GitHub repo"
+   - Select your Meridian repository
+
+3. **Configure Environment Variables**
+   - Go to your project → "Variables" tab
+   - Add the following variable:
+
+   **IMPORTANT**: Do NOT include quotes around the value!
+
+   ```
+   Variable Name: TELEGRAM_BOT_TOKEN
+   Value: 8309892025:AAH_FDFW5msO28OHlvNDton9Gq6NOWQWZZ8
+   ```
+
+   ❌ **WRONG** (with quotes):
+   ```
+   TELEGRAM_BOT_TOKEN="8309892025:AAH_FDFW5msO28OHlvNDton9Gq6NOWQWZZ8"
+   ```
+
+   ✅ **CORRECT** (without quotes):
+   ```
+   TELEGRAM_BOT_TOKEN=8309892025:AAH_FDFW5msO28OHlvNDton9Gq6NOWQWZZ8
+   ```
+
+4. **Optional Variables** (use defaults if not set):
+   ```
+   REYA_API_URL=https://api.reya.xyz
+   REYA_WS_URL=wss://ws.reya.xyz
+   LOG_LEVEL=INFO
+   ```
+
+5. **Deploy**
+   - Railway will automatically deploy on git push
+   - Or click "Deploy" button to redeploy manually
+   - Check logs to ensure bot starts successfully
+
+6. **Verify Deployment**
+   - Check Railway logs for: "✅ All components initialized successfully"
+   - Test bot by sending `/start` command on Telegram
 
 ### Option 2: Heroku
 
