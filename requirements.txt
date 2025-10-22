@@ -1,7 +1,7 @@
 # Meridian Bot Dependencies
 
-# Telegram Bot
-python-telegram-bot==20.7
+# Telegram Bot (v21+ supports Python 3.13)
+python-telegram-bot==21.7
 
 # HTTP Client
 aiohttp==3.9.1

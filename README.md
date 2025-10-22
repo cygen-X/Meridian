@@ -1,7 +1,7 @@
 # 🚀 MERIDIAN - Smart Liquidation Guard Bot for Reya.xyz
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![Python](https://img.shields.io/badge/python-3.9+-green.svg)
+![Python](https://img.shields.io/badge/python-3.11+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-purple.svg)
 
 **Meridian** is a professional-grade liquidation monitoring bot for [Reya.xyz](https://reya.xyz) perpetual DEX that monitors trader positions in real-time and sends intelligent alerts via Telegram. The bot uses **read-only** access to Reya's API (no private key exposure) and provides proactive risk management for traders.
@@ -89,7 +89,7 @@
 
 ## 📋 Prerequisites
 
-- Python 3.9 or higher
+- Python 3.11 or higher (3.11.9 recommended for Railway deployment)
 - Telegram account
 - Internet connection (for WebSocket and API access)
 
@@ -368,13 +368,15 @@ mypy .
    ```
 
 5. **Deploy**
-   - Railway will automatically deploy on git push
-   - Or click "Deploy" button to redeploy manually
+   - Railway will automatically use Python 3.11.9 (specified in `runtime.txt`)
+   - Deploy automatically on git push, or click "Deploy" button manually
    - Check logs to ensure bot starts successfully
 
 6. **Verify Deployment**
    - Check Railway logs for: "✅ All components initialized successfully"
    - Test bot by sending `/start` command on Telegram
+
+**Note:** The project includes a `runtime.txt` file that specifies Python 3.11.9 for Railway. This ensures compatibility with all dependencies.
 
 ### Option 2: Heroku
 
