@@ -368,15 +368,21 @@ mypy .
    ```
 
 5. **Deploy**
-   - Railway will automatically use Python 3.11.9 (specified in `runtime.txt`)
+   - Railway will automatically use Python 3.11 (specified in `nixpacks.toml`)
    - Deploy automatically on git push, or click "Deploy" button manually
    - Check logs to ensure bot starts successfully
+
+   **If deployment fails with Python 3.13 error:**
+   - Go to Railway project settings
+   - Click on "Deployments" tab
+   - Click the three dots (⋮) on the latest deployment
+   - Select "Redeploy" (this clears cache and uses new Python version)
 
 6. **Verify Deployment**
    - Check Railway logs for: "✅ All components initialized successfully"
    - Test bot by sending `/start` command on Telegram
 
-**Note:** The project includes a `runtime.txt` file that specifies Python 3.11.9 for Railway. This ensures compatibility with all dependencies.
+**Technical Note:** Railway uses Nixpacks as its build system. The `nixpacks.toml` file explicitly configures Python 3.11 to ensure compatibility with all dependencies.
 
 ### Option 2: Heroku
 
