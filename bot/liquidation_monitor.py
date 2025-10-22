@@ -179,13 +179,26 @@ class LiquidationMonitor:
                 logger.warning(f"Wallet not found in database: {wallet_address}")
                 return
 
+            logger.warning(f"🔍 Processing position data: {position_data}")
+            print(f"🔍 Processing position data: {position_data}")
+
+            # Map Reya's side format: 'B' (Buy) = LONG, 'S' (Sell) = SHORT
+            raw_side = position_data.get('side', 'B')
+            side = 'LONG' if raw_side == 'B' else 'SHORT'
+
+            # Reya API uses 'avgEntryPrice' not 'entry_price'
+            entry_price = float(position_data.get('avgEntryPrice', 0))
+
+            logger.warning(f"🔍 Mapped side: {raw_side} -> {side}, entry_price: {entry_price}")
+            print(f"🔍 Mapped side: {raw_side} -> {side}, entry_price: {entry_price}")
+
             # Extract position fields (adjust based on actual Reya API response)
             position = Position(
                 wallet_id=wallet.id,
                 symbol=position_data.get('symbol', ''),
                 qty=float(position_data.get('qty', 0)),
-                side=position_data.get('side', 'LONG'),
-                entry_price=float(position_data.get('entry_price', 0)),
+                side=side,
+                entry_price=entry_price,
                 mark_price=float(position_data.get('mark_price', 0)) if position_data.get('mark_price') else None,
                 unrealized_pnl=float(position_data.get('unrealized_pnl', 0)) if position_data.get('unrealized_pnl') else None
             )
@@ -193,10 +206,12 @@ class LiquidationMonitor:
             # Save to database
             self.db.upsert_position(position)
 
-            logger.debug(f"Updated position: {wallet_address} - {position.symbol}")
+            logger.warning(f"✅ Updated position: {wallet_address} - {position.symbol} {position.side} entry=${position.entry_price}")
+            print(f"✅ Updated position: {wallet_address} - {position.symbol} {position.side} entry=${position.entry_price}")
 
         except Exception as e:
             logger.error(f"Error processing position data: {e}", exc_info=True)
+            print(f"❌ ERROR processing position: {e}")
 
     async def _process_balance_data(self, wallet_address: str, balance_data):
         """Process balance data and update database"""
