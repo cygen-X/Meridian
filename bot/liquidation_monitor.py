@@ -207,69 +207,42 @@ class LiquidationMonitor:
                 logger.warning(f"Wallet not found in database: {wallet_address}")
                 return
 
-            logger.debug(f"Processing balance data type: {type(balance_data)}, data: {balance_data}")
+            logger.warning(f"🔍 Processing balance data: {balance_data}")
+            print(f"🔍 Processing balance data: {balance_data}")
 
-            # Handle if balance_data is a list (take first item) or dict
+            # Reya returns: [{'accountId': 17720, 'asset': 'RUSD', 'realBalance': '53.05...'}]
+            total_balance = 0.0
+
             if isinstance(balance_data, list):
-                if len(balance_data) == 0:
-                    logger.warning(f"Empty balance data list for {wallet_address}")
-                    return
-                balance_dict = balance_data[0]
+                # Sum all account balances
+                for account_balance in balance_data:
+                    if 'realBalance' in account_balance:
+                        total_balance += float(account_balance['realBalance'])
+                logger.warning(f"🔍 Calculated total balance: ${total_balance}")
+                print(f"🔍 Calculated total balance: ${total_balance}")
             elif isinstance(balance_data, dict):
-                # Check if there's a 'balances' key wrapping the actual data
-                if 'balances' in balance_data:
-                    balances = balance_data['balances']
-                    if isinstance(balances, list) and len(balances) > 0:
-                        balance_dict = balances[0]
-                    elif isinstance(balances, dict):
-                        balance_dict = balances
-                    else:
-                        logger.warning(f"Invalid balances structure for {wallet_address}")
-                        return
-                else:
-                    balance_dict = balance_data
-            else:
-                logger.error(f"Unexpected balance data type: {type(balance_data)}")
-                return
+                # Single balance dict
+                total_balance = float(balance_data.get('realBalance', 0))
 
-            logger.debug(f"Extracted balance_dict: {balance_dict}")
-
-            # Extract balance fields - try different possible field names
-            total_margin = float(balance_dict.get('total_margin',
-                                balance_dict.get('totalMargin',
-                                balance_dict.get('equity',
-                                balance_dict.get('totalEquity', 0)))))
-
-            used_margin = float(balance_dict.get('used_margin',
-                               balance_dict.get('usedMargin',
-                               balance_dict.get('initialMargin', 0))))
-
-            available_margin = float(balance_dict.get('available_margin',
-                                    balance_dict.get('availableMargin',
-                                    balance_dict.get('availableBalance', total_margin - used_margin))))
-
-            unrealized_pnl = float(balance_dict.get('unrealized_pnl',
-                                   balance_dict.get('unrealizedPnl',
-                                   balance_dict.get('unrealizedProfit', 0))))
-
-            logger.info(f"Parsed balance for {wallet_address}: total={total_margin}, used={used_margin}, available={available_margin}, pnl={unrealized_pnl}")
-
-            # Extract balance fields (adjust based on actual Reya API response)
+            # Since there are no positions, all margin is available
+            # We'll update this when we fetch position data
             balance = AccountBalance(
                 wallet_id=wallet.id,
-                total_margin=total_margin,
-                used_margin=used_margin,
-                available_margin=available_margin,
-                unrealized_pnl=unrealized_pnl
+                total_margin=total_balance,
+                used_margin=0.0,  # Will be calculated from positions
+                available_margin=total_balance,
+                unrealized_pnl=0.0  # Will be calculated from positions
             )
 
             # Save to database
             self.db.upsert_account_balance(balance)
 
-            logger.debug(f"Updated balance: {wallet_address}")
+            logger.warning(f"🔍 Saved balance: total=${balance.total_margin:.2f}, available=${balance.available_margin:.2f}")
+            print(f"🔍 Saved balance: total=${balance.total_margin:.2f}, available=${balance.available_margin:.2f}")
 
         except Exception as e:
             logger.error(f"Error processing balance data: {e}", exc_info=True)
+            print(f"❌ Error processing balance: {e}")
 
     async def _handle_position_update(self, wallet_address: str, data: dict):
         """Handle real-time position update from WebSocket"""
