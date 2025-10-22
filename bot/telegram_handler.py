@@ -4,7 +4,7 @@ Manages all Telegram bot commands and interactions
 """
 import logging
 from typing import Optional
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -47,6 +47,13 @@ class TelegramBot:
         self.liquidation_monitor = liquidation_monitor
         self.application: Optional[Application] = None
 
+        # Persistent menu keyboard
+        self.main_keyboard = ReplyKeyboardMarkup([
+            [KeyboardButton("➕ Add Wallet"), KeyboardButton("📊 Status")],
+            [KeyboardButton("💼 Portfolio"), KeyboardButton("📜 History")],
+            [KeyboardButton("⚙️ Settings"), KeyboardButton("❓ Help")]
+        ], resize_keyboard=True)
+
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
         user = update.effective_user
@@ -56,14 +63,12 @@ class TelegramBot:
         # Register user
         self.user_manager.register_user(user.id, user.username)
 
-        # Send welcome message
+        # Send welcome message with keyboard
         await update.message.reply_text(
             format_welcome_message(),
-            parse_mode='Markdown'
+            parse_mode='Markdown',
+            reply_markup=self.main_keyboard
         )
-
-        # Show main menu
-        await self.show_main_menu(update, context)
 
         logger.info(f"User started bot: {user.id} (@{user.username})")
 
@@ -280,7 +285,7 @@ class TelegramBot:
                 )
 
         message = "📈 MONITORING STATUS\n\n" + "\n".join(status_messages)
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(message, parse_mode='Markdown', reply_markup=self.main_keyboard)
 
     async def portfolio_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /portfolio command"""
@@ -295,37 +300,39 @@ class TelegramBot:
             await update.message.reply_text(
                 format_info_message(
                     "You have no wallets being monitored.\n"
-                    "Use /add_wallet to add one!"
-                )
+                    "Use the ➕ Add Wallet button!"
+                ),
+                reply_markup=self.main_keyboard
             )
             return
 
-        # Get portfolio for first wallet (or combine if multiple)
-        # For simplicity, showing first wallet's portfolio
-        wallet = wallets[0]
-
-        try:
-            portfolio_data = await self.liquidation_monitor.get_portfolio_summary(
-                wallet.wallet_address
-            )
-
-            if portfolio_data:
-                message = format_portfolio_summary(
-                    portfolio_data['positions'],
-                    portfolio_data['balance'],
+        # Show all wallets' portfolios
+        for wallet in wallets:
+            try:
+                portfolio_data = await self.liquidation_monitor.get_portfolio_summary(
                     wallet.wallet_address
                 )
-                await update.message.reply_text(message, parse_mode='Markdown')
-            else:
-                await update.message.reply_text(
-                    format_info_message("No positions found for this wallet.")
-                )
 
-        except Exception as e:
-            logger.error(f"Error getting portfolio: {e}", exc_info=True)
-            await update.message.reply_text(
-                format_error_message("Failed to retrieve portfolio data.")
-            )
+                if portfolio_data and portfolio_data.get('balance'):
+                    message = format_portfolio_summary(
+                        portfolio_data.get('positions', []),
+                        portfolio_data['balance'],
+                        wallet.wallet_address
+                    )
+                    await update.message.reply_text(message, parse_mode='Markdown', reply_markup=self.main_keyboard)
+                else:
+                    await update.message.reply_text(
+                        f"ℹ️ Wallet `{wallet.wallet_address[:10]}...`: No data available",
+                        parse_mode='Markdown',
+                        reply_markup=self.main_keyboard
+                    )
+
+            except Exception as e:
+                logger.error(f"Error getting portfolio for {wallet.wallet_address}: {e}", exc_info=True)
+                await update.message.reply_text(
+                    format_error_message(f"Failed to retrieve data for {wallet.wallet_address[:10]}..."),
+                    reply_markup=self.main_keyboard
+                )
 
     async def set_alert_threshold_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /set_alert_threshold command"""
@@ -686,6 +693,40 @@ class TelegramBot:
 
         text = update.message.text.strip()
 
+        # Handle keyboard button presses
+        if text == "➕ Add Wallet":
+            await update.message.reply_text(
+                "➕ *Add Wallet*\n\n"
+                "Please send your wallet address:\n\n"
+                "Format: `0x1234...`",
+                parse_mode='Markdown',
+                reply_markup=self.main_keyboard
+            )
+            context.user_data['awaiting_wallet'] = True
+            return
+        elif text == "📊 Status":
+            await self.status_command(update, context)
+            return
+        elif text == "💼 Portfolio":
+            await self.portfolio_command(update, context)
+            return
+        elif text == "📜 History":
+            await self.history_command(update, context)
+            return
+        elif text == "⚙️ Settings":
+            await update.message.reply_text(
+                "⚙️ *Settings*\n\n"
+                "Send your desired alert threshold (0-100):\n\n"
+                "Example: `75`",
+                parse_mode='Markdown',
+                reply_markup=self.main_keyboard
+            )
+            context.user_data['awaiting_threshold'] = True
+            return
+        elif text == "❓ Help":
+            await self.help_command(update, context)
+            return
+
         # Check if awaiting wallet address
         if context.user_data.get('awaiting_wallet'):
             context.user_data['awaiting_wallet'] = False
@@ -699,7 +740,8 @@ class TelegramBot:
                 threshold = float(text)
                 if not validate_threshold(threshold):
                     await update.message.reply_text(
-                        format_error_message("Threshold must be between 0 and 100.")
+                        format_error_message("Threshold must be between 0 and 100."),
+                        reply_markup=self.main_keyboard
                     )
                     return
 
@@ -707,7 +749,8 @@ class TelegramBot:
 
                 if not wallets:
                     await update.message.reply_text(
-                        format_info_message("You have no wallets. Add one first!")
+                        format_info_message("You have no wallets. Add one first!"),
+                        reply_markup=self.main_keyboard
                     )
                     return
 
@@ -723,18 +766,21 @@ class TelegramBot:
                     f"✅ *Threshold Updated*\n\n"
                     f"🔔 Alert threshold set to *{threshold}%* for all wallets!\n\n"
                     f"You'll receive alerts when margin ratio reaches this level.",
-                    parse_mode='Markdown'
+                    parse_mode='Markdown',
+                    reply_markup=self.main_keyboard
                 )
             except ValueError:
                 await update.message.reply_text(
-                    format_error_message("Invalid threshold value. Please provide a number.")
+                    format_error_message("Invalid threshold value. Please provide a number."),
+                    reply_markup=self.main_keyboard
                 )
             return
 
         # Default response if no state is set
         await update.message.reply_text(
-            "ℹ️ Use /menu to see available options or /help for more information.",
-            parse_mode='Markdown'
+            "ℹ️ Use the menu buttons below or /help for more information.",
+            parse_mode='Markdown',
+            reply_markup=self.main_keyboard
         )
 
     async def send_alert(

@@ -140,33 +140,46 @@ def format_portfolio_summary(
     wallet_short = f"{wallet_address[:6]}...{wallet_address[-4:]}"
 
     lines = [
-        "📈 PORTFOLIO SUMMARY - MERIDIAN",
+        "📈 PORTFOLIO SUMMARY",
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         "",
         f"Wallet: `{wallet_short}`",
-        f"Total Positions: {balance['total_positions']}",
-        f"Margin Ratio: {format_risk_level(balance['overall_margin_ratio'])}",
-        f"Total Exposure: ${balance['total_exposure']:,.2f}",
-        f"Available Margin: ${balance['available_margin']:,.2f}",
         "",
+        "💰 BALANCE:",
     ]
 
-    if balance['positions_at_risk'] > 0:
-        lines.append(
-            f"{ALERT_EMOJI['warning']} {balance['positions_at_risk']} "
-            f"position(s) at risk!"
-        )
-        lines.append("")
+    # Safe access to balance fields
+    total_margin = balance.get('total_margin', 0)
+    used_margin = balance.get('used_margin', 0)
+    available_margin = balance.get('available_margin', total_margin - used_margin if total_margin and used_margin else 0)
+    unrealized_pnl = balance.get('unrealized_pnl', 0)
+    margin_ratio = balance.get('margin_ratio', balance.get('overall_margin_ratio', 0))
 
-    lines.append("Positions:")
-    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    lines.extend([
+        f"  Total Margin: ${total_margin:,.2f}",
+        f"  Used Margin: ${used_margin:,.2f}",
+        f"  Available: ${available_margin:,.2f}",
+    ])
 
-    for position in positions[:10]:  # Limit to 10 positions
-        lines.append(format_position_summary(position))
-        lines.append("")
+    if unrealized_pnl != 0:
+        pnl_emoji = "🟢" if unrealized_pnl > 0 else "🔴"
+        lines.append(f"  Unrealized P&L: {pnl_emoji} ${unrealized_pnl:,.2f}")
 
-    if len(positions) > 10:
-        lines.append(f"... and {len(positions) - 10} more positions")
+    if margin_ratio > 0:
+        lines.append(f"  Margin Ratio: {format_risk_level(margin_ratio)}")
+
+    lines.extend(["", f"📊 POSITIONS ({len(positions)}):"])
+
+    if not positions:
+        lines.append("  No open positions")
+    else:
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        for position in positions[:10]:
+            lines.append(format_position_summary(position))
+            lines.append("")
+
+        if len(positions) > 10:
+            lines.append(f"... and {len(positions) - 10} more positions")
 
     return "\n".join(lines)
 
