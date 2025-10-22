@@ -9,7 +9,10 @@ from telegram.ext import (
     Application,
     CommandHandler,
     ContextTypes,
-    CallbackQueryHandler
+    CallbackQueryHandler,
+    MessageHandler,
+    ConversationHandler,
+    filters
 )
 
 from bot.user_manager import UserManager
@@ -27,6 +30,9 @@ from utils.validators import validate_threshold
 from config.settings import TELEGRAM_BOT_TOKEN
 
 logger = logging.getLogger(__name__)
+
+# Conversation states
+WAITING_FOR_WALLET_ADDRESS = 1
 
 
 class TelegramBot:
@@ -56,7 +62,53 @@ class TelegramBot:
             parse_mode='Markdown'
         )
 
+        # Show main menu
+        await self.show_main_menu(update, context)
+
         logger.info(f"User started bot: {user.id} (@{user.username})")
+
+    async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show main menu with action buttons"""
+        keyboard = [
+            [
+                InlineKeyboardButton("➕ Add Wallet", callback_data="menu_add_wallet"),
+                InlineKeyboardButton("➖ Remove Wallet", callback_data="menu_remove_wallet")
+            ],
+            [
+                InlineKeyboardButton("📊 Status", callback_data="menu_status"),
+                InlineKeyboardButton("💼 Portfolio", callback_data="menu_portfolio")
+            ],
+            [
+                InlineKeyboardButton("🔔 Set Alert Threshold", callback_data="menu_threshold"),
+                InlineKeyboardButton("📜 History", callback_data="menu_history")
+            ],
+            [
+                InlineKeyboardButton("❓ Help", callback_data="menu_help")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        menu_text = (
+            "🎛️ *Main Menu*\n\n"
+            "Choose an action below:"
+        )
+
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                menu_text,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+        else:
+            await update.message.reply_text(
+                menu_text,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+
+    async def menu_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /menu command"""
+        await self.show_main_menu(update, context)
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
@@ -82,6 +134,23 @@ class TelegramBot:
             return
 
         wallet_address = context.args[0]
+        await self._add_wallet_flow(update, context, wallet_address)
+
+    async def _add_wallet_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, wallet_address: str):
+        """Common flow for adding wallet"""
+        user = update.effective_user
+        if not user:
+            return
+
+        # Send processing message
+        if update.callback_query:
+            processing_msg = await update.callback_query.message.reply_text(
+                "🔍 Validating wallet address..."
+            )
+        else:
+            processing_msg = await update.message.reply_text(
+                "🔍 Validating wallet address..."
+            )
 
         # Add wallet
         success, message, wallet = self.user_manager.add_wallet(
@@ -90,26 +159,41 @@ class TelegramBot:
         )
 
         if success:
-            await update.message.reply_text(format_success_message(message))
+            await processing_msg.edit_text(
+                f"✅ *Wallet Added Successfully!*\n\n"
+                f"📍 Address: `{wallet_address[:10]}...{wallet_address[-8:]}`\n"
+                f"📊 Status: Active\n\n"
+                f"Starting monitoring...",
+                parse_mode='Markdown'
+            )
 
             # Start monitoring this wallet
             try:
                 await self.liquidation_monitor.start_monitoring_wallet(wallet.wallet_address)
-                await update.message.reply_text(
-                    format_info_message(
-                        f"Monitoring started for wallet {wallet_address[:10]}...\n"
-                        "You'll receive alerts when positions are at risk."
-                    )
+                await processing_msg.edit_text(
+                    f"✅ *Wallet Added Successfully!*\n\n"
+                    f"📍 Address: `{wallet_address[:10]}...{wallet_address[-8:]}`\n"
+                    f"📊 Status: Monitoring Active\n"
+                    f"🔔 Alerts: Enabled\n\n"
+                    f"You'll receive alerts when positions are at risk of liquidation.",
+                    parse_mode='Markdown'
                 )
             except Exception as e:
                 logger.error(f"Error starting monitoring: {e}", exc_info=True)
-                await update.message.reply_text(
-                    format_error_message(
-                        f"Wallet added but monitoring failed to start: {str(e)}"
-                    )
+                await processing_msg.edit_text(
+                    f"⚠️ *Wallet Added with Warning*\n\n"
+                    f"📍 Address: `{wallet_address[:10]}...{wallet_address[-8:]}`\n"
+                    f"❌ Monitoring failed to start: {str(e)}\n\n"
+                    f"Please contact support if this persists.",
+                    parse_mode='Markdown'
                 )
         else:
-            await update.message.reply_text(format_error_message(message))
+            await processing_msg.edit_text(
+                f"❌ *Failed to Add Wallet*\n\n"
+                f"{message}\n\n"
+                f"Please check the address and try again.",
+                parse_mode='Markdown'
+            )
 
         logger.info(f"Add wallet request: {user.id} - {wallet_address} - {message}")
 
@@ -346,7 +430,114 @@ class TelegramBot:
         data_parts = query.data.split(':')
         action = data_parts[0]
 
-        if action == "close_position":
+        # Handle menu actions
+        if action == "menu_add_wallet":
+            await query.edit_message_text(
+                "➕ *Add Wallet*\n\n"
+                "Please send your wallet address in the next message.\n\n"
+                "Format: `0x1234...`\n\n"
+                "You can also use: `/add_wallet 0x1234...`",
+                parse_mode='Markdown'
+            )
+            # Store state for next message
+            context.user_data['awaiting_wallet'] = True
+
+        elif action == "menu_remove_wallet":
+            user = update.effective_user
+            if not user:
+                return
+
+            wallets = self.user_manager.get_user_wallets(user.id)
+            if not wallets:
+                await query.edit_message_text(
+                    "❌ You have no wallets to remove.\n\n"
+                    "Use the menu to add a wallet first.",
+                    parse_mode='Markdown'
+                )
+                return
+
+            # Show wallet selection buttons
+            keyboard = []
+            for wallet in wallets:
+                wallet_short = f"{wallet.wallet_address[:6]}...{wallet.wallet_address[-4:]}"
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"🗑️ {wallet_short}",
+                        callback_data=f"remove_wallet:{wallet.wallet_address}"
+                    )
+                ])
+            keyboard.append([InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await query.edit_message_text(
+                "➖ *Remove Wallet*\n\n"
+                "Select a wallet to remove:",
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+
+        elif action == "menu_status":
+            await self._show_status_via_callback(update, context)
+
+        elif action == "menu_portfolio":
+            await self._show_portfolio_via_callback(update, context)
+
+        elif action == "menu_threshold":
+            await query.edit_message_text(
+                "🔔 *Set Alert Threshold*\n\n"
+                "Send a message with your desired threshold percentage.\n\n"
+                "Example: `75` (for 75% margin ratio)\n\n"
+                "Or use: `/set_alert_threshold 75`",
+                parse_mode='Markdown'
+            )
+            context.user_data['awaiting_threshold'] = True
+
+        elif action == "menu_history":
+            await self._show_history_via_callback(update, context)
+
+        elif action == "menu_help":
+            await query.edit_message_text(
+                format_help_message(),
+                parse_mode='Markdown'
+            )
+
+        elif action == "back_to_menu":
+            await self.show_main_menu(update, context)
+
+        elif action == "remove_wallet":
+            if len(data_parts) < 2:
+                await query.answer("Invalid wallet address")
+                return
+
+            wallet_address = data_parts[1]
+            user = update.effective_user
+            if not user:
+                return
+
+            # Remove wallet
+            success, message = self.user_manager.remove_wallet(user.id, wallet_address)
+
+            if success:
+                try:
+                    await self.liquidation_monitor.stop_monitoring_wallet(wallet_address)
+                except Exception as e:
+                    logger.error(f"Error stopping monitoring: {e}", exc_info=True)
+
+                await query.edit_message_text(
+                    f"✅ *Wallet Removed*\n\n"
+                    f"📍 Address: `{wallet_address[:10]}...{wallet_address[-8:]}`\n"
+                    f"📊 Status: Monitoring Stopped\n\n"
+                    f"The wallet has been removed from monitoring.",
+                    parse_mode='Markdown'
+                )
+            else:
+                await query.edit_message_text(
+                    f"❌ *Failed to Remove Wallet*\n\n"
+                    f"{message}",
+                    parse_mode='Markdown'
+                )
+
+        elif action == "close_position":
             # TODO: Implement position closing (requires write access)
             await query.edit_message_text(
                 "⚠️ Position closing requires wallet connection and is not yet implemented.\n"
@@ -360,12 +551,191 @@ class TelegramBot:
                 "Please add margin manually on Reya.xyz"
             )
 
+        elif action == "portfolio":
+            await self._show_portfolio_via_callback(update, context)
+
         elif action == "settings":
             await query.edit_message_text(
                 "⚙️ Settings\n\n"
                 "Use /set_alert_threshold to customize alert thresholds.\n"
                 "Use /remove_wallet to stop monitoring a wallet."
             )
+
+    async def _show_status_via_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show status via callback query"""
+        user = update.effective_user
+        if not user:
+            return
+
+        wallets = self.user_manager.get_user_wallets(user.id)
+
+        if not wallets:
+            await update.callback_query.edit_message_text(
+                "ℹ️ You have no wallets being monitored.\n\n"
+                "Use the menu to add a wallet first!",
+                parse_mode='Markdown'
+            )
+            return
+
+        # Get status for each wallet
+        status_messages = []
+        for wallet in wallets:
+            try:
+                status = await self.liquidation_monitor.get_wallet_status(wallet.wallet_address)
+
+                if status:
+                    wallet_short = f"{wallet.wallet_address[:6]}...{wallet.wallet_address[-4:]}"
+                    status_messages.append(
+                        f"📊 Wallet: `{wallet_short}`\n"
+                        f"   Positions: {status['position_count']}\n"
+                        f"   Margin Ratio: {status['margin_ratio']:.2f}%\n"
+                        f"   Status: {status['status']}\n"
+                    )
+                else:
+                    status_messages.append(
+                        f"⚠️ Wallet: `{wallet.wallet_address[:10]}...`\n"
+                        f"   No data available\n"
+                    )
+
+            except Exception as e:
+                logger.error(f"Error getting status for {wallet.wallet_address}: {e}")
+                status_messages.append(
+                    f"❌ Wallet: `{wallet.wallet_address[:10]}...`\n"
+                    f"   Error retrieving status\n"
+                )
+
+        message = "📈 *MONITORING STATUS*\n\n" + "\n".join(status_messages)
+        await update.callback_query.edit_message_text(message, parse_mode='Markdown')
+
+    async def _show_portfolio_via_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show portfolio via callback query"""
+        user = update.effective_user
+        if not user:
+            return
+
+        wallets = self.user_manager.get_user_wallets(user.id)
+
+        if not wallets:
+            await update.callback_query.edit_message_text(
+                "ℹ️ You have no wallets being monitored.\n\n"
+                "Use the menu to add a wallet first!",
+                parse_mode='Markdown'
+            )
+            return
+
+        wallet = wallets[0]
+
+        try:
+            portfolio_data = await self.liquidation_monitor.get_portfolio_summary(
+                wallet.wallet_address
+            )
+
+            if portfolio_data:
+                message = format_portfolio_summary(
+                    portfolio_data['positions'],
+                    portfolio_data['balance'],
+                    wallet.wallet_address
+                )
+                await update.callback_query.edit_message_text(message, parse_mode='Markdown')
+            else:
+                await update.callback_query.edit_message_text(
+                    "ℹ️ No positions found for this wallet.",
+                    parse_mode='Markdown'
+                )
+
+        except Exception as e:
+            logger.error(f"Error getting portfolio: {e}", exc_info=True)
+            await update.callback_query.edit_message_text(
+                "❌ Failed to retrieve portfolio data.",
+                parse_mode='Markdown'
+            )
+
+    async def _show_history_via_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show history via callback query"""
+        user = update.effective_user
+        if not user:
+            return
+
+        wallets = self.user_manager.get_user_wallets(user.id)
+
+        if not wallets:
+            await update.callback_query.edit_message_text(
+                "ℹ️ You have no wallets being monitored.",
+                parse_mode='Markdown'
+            )
+            return
+
+        # Get alerts for all wallets
+        all_alerts = []
+        for wallet in wallets:
+            alerts = self.liquidation_monitor.db.get_recent_alerts(wallet.id, hours=24)
+            all_alerts.extend(alerts)
+
+        # Sort by created_at descending
+        all_alerts.sort(key=lambda a: a.created_at, reverse=True)
+
+        # Format and send
+        message = format_alert_history(all_alerts)
+        await update.callback_query.edit_message_text(message, parse_mode='Markdown')
+
+    async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle text messages for wallet address or threshold input"""
+        user = update.effective_user
+        if not user:
+            return
+
+        text = update.message.text.strip()
+
+        # Check if awaiting wallet address
+        if context.user_data.get('awaiting_wallet'):
+            context.user_data['awaiting_wallet'] = False
+            await self._add_wallet_flow(update, context, text)
+            return
+
+        # Check if awaiting threshold
+        if context.user_data.get('awaiting_threshold'):
+            context.user_data['awaiting_threshold'] = False
+            try:
+                threshold = float(text)
+                if not validate_threshold(threshold):
+                    await update.message.reply_text(
+                        format_error_message("Threshold must be between 0 and 100.")
+                    )
+                    return
+
+                wallets = self.user_manager.get_user_wallets(user.id)
+
+                if not wallets:
+                    await update.message.reply_text(
+                        format_info_message("You have no wallets. Add one first!")
+                    )
+                    return
+
+                # Set threshold for all user's wallets
+                for wallet in wallets:
+                    self.user_manager.set_wallet_threshold(
+                        user.id,
+                        wallet.wallet_address,
+                        threshold
+                    )
+
+                await update.message.reply_text(
+                    f"✅ *Threshold Updated*\n\n"
+                    f"🔔 Alert threshold set to *{threshold}%* for all wallets!\n\n"
+                    f"You'll receive alerts when margin ratio reaches this level.",
+                    parse_mode='Markdown'
+                )
+            except ValueError:
+                await update.message.reply_text(
+                    format_error_message("Invalid threshold value. Please provide a number.")
+                )
+            return
+
+        # Default response if no state is set
+        await update.message.reply_text(
+            "ℹ️ Use /menu to see available options or /help for more information.",
+            parse_mode='Markdown'
+        )
 
     async def send_alert(
         self,
@@ -416,6 +786,7 @@ class TelegramBot:
 
         # Add command handlers
         self.application.add_handler(CommandHandler("start", self.start_command))
+        self.application.add_handler(CommandHandler("menu", self.menu_command))
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("add_wallet", self.add_wallet_command))
         self.application.add_handler(CommandHandler("remove_wallet", self.remove_wallet_command))
@@ -426,6 +797,10 @@ class TelegramBot:
 
         # Add callback query handler
         self.application.add_handler(CallbackQueryHandler(self.handle_callback_query))
+
+        # Add text message handler (for wallet address and threshold input)
+        # This should be last to avoid catching commands
+        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_message))
 
         logger.info("Telegram bot handlers configured")
 

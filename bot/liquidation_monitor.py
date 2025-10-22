@@ -185,7 +185,7 @@ class LiquidationMonitor:
         except Exception as e:
             logger.error(f"Error processing position data: {e}", exc_info=True)
 
-    async def _process_balance_data(self, wallet_address: str, balance_data: dict):
+    async def _process_balance_data(self, wallet_address: str, balance_data):
         """Process balance data and update database"""
         try:
             # Get wallet from database
@@ -194,13 +194,36 @@ class LiquidationMonitor:
                 logger.warning(f"Wallet not found in database: {wallet_address}")
                 return
 
+            # Handle if balance_data is a list (take first item) or dict
+            if isinstance(balance_data, list):
+                if len(balance_data) == 0:
+                    logger.warning(f"Empty balance data list for {wallet_address}")
+                    return
+                balance_dict = balance_data[0]
+            elif isinstance(balance_data, dict):
+                # Check if there's a 'balances' key wrapping the actual data
+                if 'balances' in balance_data:
+                    balances = balance_data['balances']
+                    if isinstance(balances, list) and len(balances) > 0:
+                        balance_dict = balances[0]
+                    elif isinstance(balances, dict):
+                        balance_dict = balances
+                    else:
+                        logger.warning(f"Invalid balances structure for {wallet_address}")
+                        return
+                else:
+                    balance_dict = balance_data
+            else:
+                logger.error(f"Unexpected balance data type: {type(balance_data)}")
+                return
+
             # Extract balance fields (adjust based on actual Reya API response)
             balance = AccountBalance(
                 wallet_id=wallet.id,
-                total_margin=float(balance_data.get('total_margin', 0)),
-                used_margin=float(balance_data.get('used_margin', 0)),
-                available_margin=float(balance_data.get('available_margin', 0)),
-                unrealized_pnl=float(balance_data.get('unrealized_pnl', 0))
+                total_margin=float(balance_dict.get('total_margin', 0)),
+                used_margin=float(balance_dict.get('used_margin', 0)),
+                available_margin=float(balance_dict.get('available_margin', 0)),
+                unrealized_pnl=float(balance_dict.get('unrealized_pnl', 0))
             )
 
             # Save to database
