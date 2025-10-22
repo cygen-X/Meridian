@@ -137,19 +137,23 @@ class LiquidationMonitor:
     async def _fetch_wallet_data(self, wallet_address: str):
         """Fetch wallet data from REST API"""
         try:
-            logger.info(f"Fetching data for wallet {wallet_address}")
+            logger.warning(f"🔍 FETCHING DATA for wallet {wallet_address}")
+            print(f"🔍 FETCHING DATA for wallet {wallet_address}")
 
             # Fetch accounts first
             accounts = await self.reya_client.get_wallet_accounts(wallet_address)
-            logger.info(f"Got {len(accounts) if accounts else 0} accounts for {wallet_address}")
+            logger.warning(f"🔍 Got {len(accounts) if accounts else 0} accounts")
+            print(f"🔍 Got {len(accounts) if accounts else 0} accounts: {accounts}")
 
             # Fetch positions
             positions_data = await self.reya_client.get_wallet_positions(wallet_address)
-            logger.info(f"Got {len(positions_data) if positions_data else 0} positions for {wallet_address}")
+            logger.warning(f"🔍 Got {len(positions_data) if positions_data else 0} positions")
+            print(f"🔍 Got {len(positions_data) if positions_data else 0} positions: {positions_data}")
 
             # Fetch balances
             balance_data = await self.reya_client.get_wallet_balances(wallet_address)
-            logger.info(f"Got balance data for {wallet_address}: {balance_data}")
+            logger.warning(f"🔍 Got balance data: {balance_data}")
+            print(f"🔍 Got balance data: {balance_data}")
 
             # Process data
             if balance_data:
@@ -164,6 +168,7 @@ class LiquidationMonitor:
 
         except Exception as e:
             logger.error(f"Error fetching wallet data for {wallet_address}: {e}", exc_info=True)
+            print(f"❌ ERROR fetching wallet data: {e}")
 
     async def _process_position_data(self, wallet_address: str, position_data: dict):
         """Process position data and update database"""

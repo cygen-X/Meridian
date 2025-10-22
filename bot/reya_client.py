@@ -100,7 +100,8 @@ class ReyaAPIClient:
         endpoint = f"/v2/wallet/{wallet_address}/accounts"
         response = await self._make_request('GET', endpoint)
 
-        logger.info(f"Accounts API response for {wallet_address}: {response}")
+        logger.warning(f"🔍 ACCOUNTS API RESPONSE: {response}")
+        print(f"🔍 ACCOUNTS API RESPONSE: {response}")
 
         if response:
             return response if isinstance(response, list) else [response]
@@ -116,7 +117,8 @@ class ReyaAPIClient:
         endpoint = f"/v2/wallet/{wallet_address}/positions"
         response = await self._make_request('GET', endpoint)
 
-        logger.info(f"Positions API response for {wallet_address}: {response}")
+        logger.warning(f"🔍 POSITIONS API RESPONSE: {response}")
+        print(f"🔍 POSITIONS API RESPONSE: {response}")
 
         if response:
             # Handle different response formats
@@ -141,7 +143,8 @@ class ReyaAPIClient:
         endpoint = f"/v2/wallet/{wallet_address}/accountBalances"
         response = await self._make_request('GET', endpoint)
 
-        logger.info(f"Account balances API response for {wallet_address}: {response}")
+        logger.warning(f"🔍 BALANCE API RESPONSE: {response}")
+        print(f"🔍 BALANCE API RESPONSE: {response}")
 
         if response:
             return response

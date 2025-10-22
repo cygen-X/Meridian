@@ -293,11 +293,13 @@ class TelegramBot:
         if not user:
             return
 
-        logger.info(f"Portfolio command triggered by user {user.id}")
+        logger.warning(f"🔍 PORTFOLIO COMMAND TRIGGERED by user {user.id}")
+        print(f"🔍 PORTFOLIO COMMAND TRIGGERED by user {user.id}")
 
         # Get user's wallets
         wallets = self.user_manager.get_user_wallets(user.id)
-        logger.info(f"User has {len(wallets)} wallets")
+        logger.warning(f"🔍 User {user.id} has {len(wallets)} wallets")
+        print(f"🔍 User {user.id} has {len(wallets)} wallets")
 
         if not wallets:
             await update.message.reply_text(
@@ -311,7 +313,8 @@ class TelegramBot:
 
         # Show all wallets' portfolios
         for wallet in wallets:
-            logger.info(f"Getting portfolio for wallet {wallet.wallet_address}")
+            logger.warning(f"🔍 Getting portfolio for wallet {wallet.wallet_address}")
+            print(f"🔍 Getting portfolio for wallet {wallet.wallet_address}")
             try:
                 # Force fetch fresh data first
                 await self.liquidation_monitor._fetch_wallet_data(wallet.wallet_address)
@@ -320,7 +323,8 @@ class TelegramBot:
                     wallet.wallet_address
                 )
 
-                logger.info(f"Portfolio data: {portfolio_data}")
+                logger.warning(f"🔍 Portfolio data received: {portfolio_data}")
+                print(f"🔍 Portfolio data received: {portfolio_data}")
 
                 if portfolio_data and portfolio_data.get('balance'):
                     message = format_portfolio_summary(
