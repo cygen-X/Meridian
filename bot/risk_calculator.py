@@ -338,9 +338,12 @@ class RiskCalculator:
         return {
             "total_positions": len(positions),
             "overall_margin_ratio": account_balance.margin_ratio,
+            "margin_ratio": account_balance.margin_ratio,
             "positions_at_risk": positions_at_risk,
             "total_exposure": total_exposure,
             "most_risky_position": most_risky.symbol if most_risky else None,
+            "total_margin": account_balance.total_margin,
             "available_margin": account_balance.available_margin,
-            "used_margin": account_balance.used_margin
+            "used_margin": account_balance.used_margin,
+            "unrealized_pnl": account_balance.unrealized_pnl
         }
