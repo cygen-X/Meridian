@@ -137,18 +137,19 @@ class LiquidationMonitor:
     async def _fetch_wallet_data(self, wallet_address: str):
         """Fetch wallet data from REST API"""
         try:
-            logger.debug(f"Fetching data for wallet {wallet_address}")
+            logger.warning(f"Fetching data for wallet {wallet_address}")
 
             # Fetch accounts
             accounts = await self.reya_client.get_wallet_accounts(wallet_address)
-            logger.debug(f"Found {len(accounts) if accounts else 0} accounts")
+            logger.warning(f"Found {len(accounts) if accounts else 0} accounts")
 
             # Fetch positions
             positions_data = await self.reya_client.get_wallet_positions(wallet_address)
-            logger.debug(f"Found {len(positions_data) if positions_data else 0} positions")
+            logger.warning(f"Found {len(positions_data) if positions_data else 0} positions")
 
             # Fetch balances
             balance_data = await self.reya_client.get_wallet_balances(wallet_address)
+            logger.warning(f"Balance data: {balance_data}")
 
             # Process data
             if balance_data:
@@ -172,12 +173,16 @@ class LiquidationMonitor:
                 logger.warning(f"Wallet not found in database: {wallet_address}")
                 return
 
+            logger.warning(f"Processing position data: {position_data}")
+
             # Map Reya's side format: 'B' (Buy) = LONG, 'S' (Sell) = SHORT
             raw_side = position_data.get('side', 'B')
             side = 'LONG' if raw_side == 'B' else 'SHORT'
 
             # Reya API uses 'avgEntryPrice'
             entry_price = float(position_data.get('avgEntryPrice', 0))
+
+            logger.warning(f"Mapped side: {raw_side} -> {side}, entry_price: {entry_price}")
 
             position = Position(
                 wallet_id=wallet.id,
@@ -190,7 +195,7 @@ class LiquidationMonitor:
             )
 
             self.db.upsert_position(position)
-            logger.debug(f"Updated position: {position.symbol} {position.side} @ ${position.entry_price}")
+            logger.warning(f"Updated position: {position.symbol} {position.side} @ ${position.entry_price}")
 
         except Exception as e:
             logger.error(f"Error processing position data: {e}", exc_info=True)
@@ -203,6 +208,8 @@ class LiquidationMonitor:
                 logger.warning(f"Wallet not found in database: {wallet_address}")
                 return
 
+            logger.warning(f"Processing balance data: {balance_data}")
+
             # Reya returns list of account balances
             total_balance = 0.0
 
@@ -210,6 +217,7 @@ class LiquidationMonitor:
                 for account_balance in balance_data:
                     if 'realBalance' in account_balance:
                         total_balance += float(account_balance['realBalance'])
+                logger.warning(f"Calculated total balance: ${total_balance}")
             elif isinstance(balance_data, dict):
                 total_balance = float(balance_data.get('realBalance', 0))
 
@@ -222,7 +230,7 @@ class LiquidationMonitor:
             )
 
             self.db.upsert_account_balance(balance)
-            logger.debug(f"Updated balance: ${balance.total_margin:.2f}")
+            logger.warning(f"Saved balance: total=${balance.total_margin:.2f}, available=${balance.available_margin:.2f}")
 
         except Exception as e:
             logger.error(f"Error processing balance data: {e}", exc_info=True)
