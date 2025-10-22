@@ -100,9 +100,19 @@ class ReyaAPIClient:
         endpoint = f"/api/trading/wallet/{wallet_address}/positions"
         response = await self._make_request('GET', endpoint)
 
-        if response and 'positions' in response:
-            logger.info(f"Fetched {len(response['positions'])} positions for {wallet_address}")
-            return response['positions']
+        logger.debug(f"Positions API response for {wallet_address}: {response}")
+
+        if response:
+            # Handle different response formats
+            if isinstance(response, list):
+                logger.info(f"Fetched {len(response)} positions for {wallet_address}")
+                return response
+            elif isinstance(response, dict) and 'positions' in response:
+                logger.info(f"Fetched {len(response['positions'])} positions for {wallet_address}")
+                return response['positions']
+            else:
+                logger.info(f"Positions response: {response}")
+                return []
 
         logger.warning(f"No positions found for {wallet_address}")
         return []
@@ -110,16 +120,30 @@ class ReyaAPIClient:
     async def get_wallet_balances(self, wallet_address: str) -> Optional[Dict[str, Any]]:
         """
         Get account balances for a wallet
-        GET /api/trading/wallet/{address}/accounts/balances
+        Try multiple endpoints:
+        - /api/trading/wallet/{address}/accounts/balances
+        - /api/trading/wallet/{address}/account
+        - /api/v2/accounts/{address}
         """
+        # Try primary endpoint
         endpoint = f"/api/trading/wallet/{wallet_address}/accounts/balances"
         response = await self._make_request('GET', endpoint)
 
+        logger.info(f"Balance API response for {wallet_address}: {response}")
+
         if response:
-            logger.info(f"Fetched balances for {wallet_address}")
             return response
 
-        logger.warning(f"No balances found for {wallet_address}")
+        # Try alternative endpoint
+        logger.info(f"Trying alternative endpoint for {wallet_address}")
+        endpoint = f"/api/trading/wallet/{wallet_address}/account"
+        response = await self._make_request('GET', endpoint)
+
+        if response:
+            logger.info(f"Got balance from alternative endpoint: {response}")
+            return response
+
+        logger.warning(f"No balances found for {wallet_address} on any endpoint")
         return None
 
     async def get_markets(self) -> Optional[List[Dict[str, Any]]]:
