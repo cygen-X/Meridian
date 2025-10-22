@@ -137,23 +137,18 @@ class LiquidationMonitor:
     async def _fetch_wallet_data(self, wallet_address: str):
         """Fetch wallet data from REST API"""
         try:
-            logger.warning(f"🔍 FETCHING DATA for wallet {wallet_address}")
-            print(f"🔍 FETCHING DATA for wallet {wallet_address}")
+            logger.debug(f"Fetching data for wallet {wallet_address}")
 
-            # Fetch accounts first
+            # Fetch accounts
             accounts = await self.reya_client.get_wallet_accounts(wallet_address)
-            logger.warning(f"🔍 Got {len(accounts) if accounts else 0} accounts")
-            print(f"🔍 Got {len(accounts) if accounts else 0} accounts: {accounts}")
+            logger.debug(f"Found {len(accounts) if accounts else 0} accounts")
 
             # Fetch positions
             positions_data = await self.reya_client.get_wallet_positions(wallet_address)
-            logger.warning(f"🔍 Got {len(positions_data) if positions_data else 0} positions")
-            print(f"🔍 Got {len(positions_data) if positions_data else 0} positions: {positions_data}")
+            logger.debug(f"Found {len(positions_data) if positions_data else 0} positions")
 
             # Fetch balances
             balance_data = await self.reya_client.get_wallet_balances(wallet_address)
-            logger.warning(f"🔍 Got balance data: {balance_data}")
-            print(f"🔍 Got balance data: {balance_data}")
 
             # Process data
             if balance_data:
@@ -168,31 +163,22 @@ class LiquidationMonitor:
 
         except Exception as e:
             logger.error(f"Error fetching wallet data for {wallet_address}: {e}", exc_info=True)
-            print(f"❌ ERROR fetching wallet data: {e}")
 
     async def _process_position_data(self, wallet_address: str, position_data: dict):
         """Process position data and update database"""
         try:
-            # Get wallet from database
             wallet = self.user_manager.get_wallet_by_address(wallet_address)
             if not wallet:
                 logger.warning(f"Wallet not found in database: {wallet_address}")
                 return
 
-            logger.warning(f"🔍 Processing position data: {position_data}")
-            print(f"🔍 Processing position data: {position_data}")
-
             # Map Reya's side format: 'B' (Buy) = LONG, 'S' (Sell) = SHORT
             raw_side = position_data.get('side', 'B')
             side = 'LONG' if raw_side == 'B' else 'SHORT'
 
-            # Reya API uses 'avgEntryPrice' not 'entry_price'
+            # Reya API uses 'avgEntryPrice'
             entry_price = float(position_data.get('avgEntryPrice', 0))
 
-            logger.warning(f"🔍 Mapped side: {raw_side} -> {side}, entry_price: {entry_price}")
-            print(f"🔍 Mapped side: {raw_side} -> {side}, entry_price: {entry_price}")
-
-            # Extract position fields (adjust based on actual Reya API response)
             position = Position(
                 wallet_id=wallet.id,
                 symbol=position_data.get('symbol', ''),
@@ -203,61 +189,43 @@ class LiquidationMonitor:
                 unrealized_pnl=float(position_data.get('unrealized_pnl', 0)) if position_data.get('unrealized_pnl') else None
             )
 
-            # Save to database
             self.db.upsert_position(position)
-
-            logger.warning(f"✅ Updated position: {wallet_address} - {position.symbol} {position.side} entry=${position.entry_price}")
-            print(f"✅ Updated position: {wallet_address} - {position.symbol} {position.side} entry=${position.entry_price}")
+            logger.debug(f"Updated position: {position.symbol} {position.side} @ ${position.entry_price}")
 
         except Exception as e:
             logger.error(f"Error processing position data: {e}", exc_info=True)
-            print(f"❌ ERROR processing position: {e}")
 
     async def _process_balance_data(self, wallet_address: str, balance_data):
         """Process balance data and update database"""
         try:
-            # Get wallet from database
             wallet = self.user_manager.get_wallet_by_address(wallet_address)
             if not wallet:
                 logger.warning(f"Wallet not found in database: {wallet_address}")
                 return
 
-            logger.warning(f"🔍 Processing balance data: {balance_data}")
-            print(f"🔍 Processing balance data: {balance_data}")
-
-            # Reya returns: [{'accountId': 17720, 'asset': 'RUSD', 'realBalance': '53.05...'}]
+            # Reya returns list of account balances
             total_balance = 0.0
 
             if isinstance(balance_data, list):
-                # Sum all account balances
                 for account_balance in balance_data:
                     if 'realBalance' in account_balance:
                         total_balance += float(account_balance['realBalance'])
-                logger.warning(f"🔍 Calculated total balance: ${total_balance}")
-                print(f"🔍 Calculated total balance: ${total_balance}")
             elif isinstance(balance_data, dict):
-                # Single balance dict
                 total_balance = float(balance_data.get('realBalance', 0))
 
-            # Since there are no positions, all margin is available
-            # We'll update this when we fetch position data
             balance = AccountBalance(
                 wallet_id=wallet.id,
                 total_margin=total_balance,
-                used_margin=0.0,  # Will be calculated from positions
+                used_margin=0.0,
                 available_margin=total_balance,
-                unrealized_pnl=0.0  # Will be calculated from positions
+                unrealized_pnl=0.0
             )
 
-            # Save to database
             self.db.upsert_account_balance(balance)
-
-            logger.warning(f"🔍 Saved balance: total=${balance.total_margin:.2f}, available=${balance.available_margin:.2f}")
-            print(f"🔍 Saved balance: total=${balance.total_margin:.2f}, available=${balance.available_margin:.2f}")
+            logger.debug(f"Updated balance: ${balance.total_margin:.2f}")
 
         except Exception as e:
             logger.error(f"Error processing balance data: {e}", exc_info=True)
-            print(f"❌ Error processing balance: {e}")
 
     async def _handle_position_update(self, wallet_address: str, data: dict):
         """Handle real-time position update from WebSocket"""

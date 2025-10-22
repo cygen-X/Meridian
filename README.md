@@ -274,11 +274,12 @@ meridian-bot/
 
 ### REST API Endpoints
 
-Meridian uses these **public, read-only** endpoints:
+Meridian uses these **public, read-only** Reya v2 endpoints:
 
 ```
-GET /api/trading/wallet/{address}/positions
-GET /api/trading/wallet/{address}/accounts/balances
+GET /v2/wallet/{address}/accounts
+GET /v2/wallet/{address}/positions
+GET /v2/wallet/{address}/accountBalances
 GET /api/trading/markets
 GET /api/trading/market/{symbol}/summary
 ```
@@ -289,7 +290,7 @@ Real-time updates via WebSocket:
 
 ```
 /v2/wallet/{address}/positions
-/v2/wallet/{address}/accounts/balances
+/v2/wallet/{address}/accountBalances
 /v2/prices/{symbol}
 /v2/market/{symbol}/summary
 ```
