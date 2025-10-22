@@ -93,151 +93,90 @@ class ReyaAPIClient:
         return None
 
     async def get_wallet_accounts(self, wallet_address: str) -> Optional[List[Dict[str, Any]]]:
-        """
-        Get all account IDs for a wallet
-        GET /v2/wallet/{address}/accounts
-        """
+        """Get all account IDs for a wallet"""
         endpoint = f"/v2/wallet/{wallet_address}/accounts"
         response = await self._make_request('GET', endpoint)
-
-        logger.warning(f"🔍 ACCOUNTS API RESPONSE: {response}")
-        print(f"🔍 ACCOUNTS API RESPONSE: {response}")
 
         if response:
             return response if isinstance(response, list) else [response]
 
-        logger.warning(f"No accounts found for {wallet_address}")
+        logger.debug(f"No accounts found for {wallet_address}")
         return []
 
     async def get_wallet_positions(self, wallet_address: str) -> Optional[List[Dict[str, Any]]]:
-        """
-        Get all positions for a wallet across all accounts
-        GET /v2/wallet/{address}/positions
-        """
+        """Get all positions for a wallet across all accounts"""
         endpoint = f"/v2/wallet/{wallet_address}/positions"
         response = await self._make_request('GET', endpoint)
 
-        logger.warning(f"🔍 POSITIONS API RESPONSE: {response}")
-        print(f"🔍 POSITIONS API RESPONSE: {response}")
-
         if response:
-            # Handle different response formats
             if isinstance(response, list):
-                logger.info(f"Fetched {len(response)} positions for {wallet_address}")
+                logger.debug(f"Fetched {len(response)} positions")
                 return response
             elif isinstance(response, dict) and 'positions' in response:
-                logger.info(f"Fetched {len(response['positions'])} positions for {wallet_address}")
+                logger.debug(f"Fetched {len(response['positions'])} positions")
                 return response['positions']
             else:
-                logger.info(f"Positions response: {response}")
                 return []
 
-        logger.warning(f"No positions found for {wallet_address}")
+        logger.debug(f"No positions found for {wallet_address}")
         return []
 
     async def get_wallet_balances(self, wallet_address: str) -> Optional[Dict[str, Any]]:
-        """
-        Get account balances for a wallet
-        GET /v2/wallet/{address}/accountBalances
-        """
+        """Get account balances for a wallet"""
         endpoint = f"/v2/wallet/{wallet_address}/accountBalances"
         response = await self._make_request('GET', endpoint)
-
-        logger.warning(f"🔍 BALANCE API RESPONSE: {response}")
-        print(f"🔍 BALANCE API RESPONSE: {response}")
 
         if response:
             return response
 
-        logger.warning(f"No balances found for {wallet_address}")
+        logger.debug(f"No balances found for {wallet_address}")
         return None
 
     async def get_markets(self) -> Optional[List[Dict[str, Any]]]:
-        """
-        Get all available markets
-        GET /api/trading/markets
-        """
+        """Get all available markets"""
         endpoint = "/api/trading/markets"
         response = await self._make_request('GET', endpoint)
 
         if response and 'markets' in response:
-            logger.info(f"Fetched {len(response['markets'])} markets")
+            logger.debug(f"Fetched {len(response['markets'])} markets")
             return response['markets']
-
-        logger.warning("No markets found")
         return []
 
     async def get_market_summary(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """
-        Get market summary including funding rate
-        GET /api/trading/market/{symbol}/summary
-        """
+        """Get market summary including funding rate"""
         endpoint = f"/api/trading/market/{symbol}/summary"
         response = await self._make_request('GET', endpoint)
-
-        if response:
-            logger.info(f"Fetched market summary for {symbol}")
-            return response
-
-        logger.warning(f"No market summary found for {symbol}")
-        return None
+        return response
 
     async def get_market_price(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """
-        Get current market price
-        GET /api/trading/market/{symbol}/price
-        """
+        """Get current market price"""
         endpoint = f"/api/trading/market/{symbol}/price"
         response = await self._make_request('GET', endpoint)
-
-        if response:
-            logger.debug(f"Fetched price for {symbol}")
-            return response
-
-        return None
+        return response
 
     async def get_position_details(self, wallet_address: str, symbol: str) -> Optional[Dict[str, Any]]:
-        """
-        Get detailed position information
-        GET /api/trading/wallet/{address}/position/{symbol}
-        """
+        """Get detailed position information"""
         endpoint = f"/api/trading/wallet/{wallet_address}/position/{symbol}"
         response = await self._make_request('GET', endpoint)
-
-        if response:
-            logger.info(f"Fetched position details for {wallet_address} - {symbol}")
-            return response
-
-        return None
+        return response
 
     async def get_funding_history(self, symbol: str, limit: int = 100) -> Optional[List[Dict[str, Any]]]:
-        """
-        Get funding rate history
-        GET /api/trading/market/{symbol}/funding
-        """
+        """Get funding rate history"""
         endpoint = f"/api/trading/market/{symbol}/funding"
         params = {'limit': limit}
         response = await self._make_request('GET', endpoint, params=params)
 
         if response and 'funding_history' in response:
-            logger.info(f"Fetched {len(response['funding_history'])} funding records for {symbol}")
             return response['funding_history']
-
         return []
 
     async def validate_wallet_address(self, wallet_address: str) -> bool:
-        """
-        Validate if a wallet address exists on Reya
-        Returns True if wallet is valid and has data
-        """
+        """Validate if a wallet address exists on Reya"""
         try:
-            # Try to fetch positions
             response = await self.get_wallet_balances(wallet_address)
             if response is not None:
-                logger.info(f"Wallet {wallet_address} is valid")
+                logger.debug(f"Wallet {wallet_address} is valid")
                 return True
-
-            logger.warning(f"Wallet {wallet_address} validation failed")
             return False
 
         except Exception as e:
