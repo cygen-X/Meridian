@@ -66,6 +66,14 @@ class RiskCalculator:
 
         Returns: Percentage distance (positive value)
         """
+        if not current_price or current_price == 0:
+            logger.warning(f"Invalid current_price: {current_price}, returning 0 distance")
+            return 0.0
+
+        if not liquidation_price or liquidation_price == 0:
+            logger.warning(f"Invalid liquidation_price: {liquidation_price}, returning 0 distance")
+            return 0.0
+
         distance = abs(current_price - liquidation_price) / current_price * 100
         return distance
 
@@ -263,6 +271,18 @@ class RiskCalculator:
         """
         # Use current price or mark price
         mark_price = current_price or position.mark_price or position.entry_price
+
+        # Safety check for zero/null prices
+        if not mark_price or mark_price == 0:
+            logger.error(f"Position {position.symbol} has no valid price data, cannot calculate risk")
+            # Return safe default metrics
+            return RiskMetrics(
+                position=position,
+                account_balance=account_balance,
+                liquidation_price=0.0,
+                distance_to_liquidation=0.0,
+                recommended_actions=["Unable to calculate risk - no price data available"]
+            )
 
         # Calculate liquidation price
         liquidation_price = self.calculate_liquidation_price(position, leverage)

@@ -290,7 +290,12 @@ class LiquidationMonitor:
             positions = self.db.get_wallet_positions(wallet.id)
             balance = self.db.get_account_balance(wallet.id)
 
-            if not balance or not positions:
+            if not balance:
+                logger.debug(f"No balance data for {wallet_address}")
+                return
+
+            if not positions:
+                logger.debug(f"No positions for {wallet_address}")
                 return
 
             # Get threshold settings
@@ -298,32 +303,41 @@ class LiquidationMonitor:
 
             # Check each position
             for position in positions:
-                # Calculate risk metrics
-                risk_metrics = self.risk_calculator.calculate_risk_metrics(
-                    position,
-                    balance
-                )
+                # Skip positions with invalid data
+                if not position.entry_price or position.entry_price == 0:
+                    logger.warning(f"Skipping position {position.symbol} - invalid entry price")
+                    continue
 
-                # Update position in database with calculated values
-                self.db.upsert_position(risk_metrics.position)
-
-                # Determine alert level
-                alert_level = threshold.get_alert_level(balance.margin_ratio)
-
-                if alert_level:
-                    # Check if we should send alert (not too frequent)
-                    should_alert = self._should_send_alert(
-                        wallet_address,
-                        position.symbol,
-                        alert_level
+                try:
+                    # Calculate risk metrics
+                    risk_metrics = self.risk_calculator.calculate_risk_metrics(
+                        position,
+                        balance
                     )
 
-                    if should_alert:
-                        await self._send_alert(
-                            wallet,
-                            risk_metrics,
+                    # Update position in database with calculated values
+                    self.db.upsert_position(risk_metrics.position)
+
+                    # Determine alert level
+                    alert_level = threshold.get_alert_level(balance.margin_ratio)
+
+                    if alert_level:
+                        # Check if we should send alert (not too frequent)
+                        should_alert = self._should_send_alert(
+                            wallet_address,
+                            position.symbol,
                             alert_level
                         )
+
+                        if should_alert:
+                            await self._send_alert(
+                                wallet,
+                                risk_metrics,
+                                alert_level
+                            )
+                except Exception as e:
+                    logger.error(f"Error calculating risk for position {position.symbol}: {e}", exc_info=True)
+                    continue
 
         except Exception as e:
             logger.error(f"Error checking alerts for {wallet_address}: {e}", exc_info=True)
