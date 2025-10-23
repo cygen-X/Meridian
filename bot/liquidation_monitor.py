@@ -287,8 +287,25 @@ class LiquidationMonitor:
                 logger.debug(f"No positions for {wallet_address}")
                 return
 
+            # Calculate used margin from positions
+            total_position_value = sum(
+                abs(pos.qty) * (pos.mark_price or pos.entry_price)
+                for pos in positions if pos.entry_price
+            )
+
+            # Update balance with calculated used_margin (assuming ~10x leverage)
+            estimated_leverage = 10.0
+            balance.used_margin = total_position_value / estimated_leverage
+            balance.available_margin = balance.total_margin - balance.used_margin
+
+            # Save updated balance
+            self.db.upsert_account_balance(balance)
+
+            logger.warning(f"📊 MARGIN CHECK - Total: ${balance.total_margin:.2f}, Used: ${balance.used_margin:.2f}, Ratio: {balance.margin_ratio:.2f}%")
+
             # Get threshold settings
             threshold = self.user_manager.get_wallet_threshold(wallet.id)
+            logger.warning(f"🔔 THRESHOLDS - Warning: {threshold.threshold_warning}%, Critical: {threshold.threshold_critical}%, Urgent: {threshold.threshold_urgent}%")
 
             # Check each position
             for position in positions:
@@ -310,7 +327,10 @@ class LiquidationMonitor:
                     # Determine alert level
                     alert_level = threshold.get_alert_level(balance.margin_ratio)
 
+                    logger.warning(f"🎯 Alert check for {position.symbol}: margin_ratio={balance.margin_ratio:.2f}%, alert_level={alert_level}")
+
                     if alert_level:
+                        logger.warning(f"🚨 ALERT TRIGGERED! Level: {alert_level.value}, Position: {position.symbol}")
                         # Check if we should send alert (not too frequent)
                         should_alert = self._should_send_alert(
                             wallet_address,
@@ -319,11 +339,14 @@ class LiquidationMonitor:
                         )
 
                         if should_alert:
+                            logger.warning(f"📤 Sending alert to user for {position.symbol}")
                             await self._send_alert(
                                 wallet,
                                 risk_metrics,
                                 alert_level
                             )
+                        else:
+                            logger.warning(f"⏭️ Alert skipped (too soon) for {position.symbol}")
                 except Exception as e:
                     logger.error(f"Error calculating risk for position {position.symbol}: {e}", exc_info=True)
                     continue

@@ -701,9 +701,21 @@ class TelegramBot:
         # Handle keyboard button presses
         if text == "➕ Add Wallet":
             await update.message.reply_text(
-                "➕ *Add Wallet*\n\n"
-                "Please send your wallet address:\n\n"
-                "Format: `0x1234...`",
+                "➕ *ADD WALLET FOR MONITORING*\n\n"
+                "🔒 *100% Safe & Non-Custodial*\n"
+                "We only *read* your public wallet data.\n"
+                "No private keys needed. Cannot execute trades.\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "📝 *Instructions:*\n"
+                "Send your Ethereum wallet address\n\n"
+                "Format: `0x1234567890abcdef...`\n\n"
+                "Example:\n"
+                "`0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb`\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "✅ Once added, you'll receive real-time alerts for:\n"
+                "  • Liquidation risks\n"
+                "  • Position changes\n"
+                "  • Margin ratio updates",
                 parse_mode='Markdown',
                 reply_markup=self.main_keyboard
             )
@@ -719,10 +731,43 @@ class TelegramBot:
             await self.history_command(update, context)
             return
         elif text == "⚙️ Settings":
+            # Get user's wallets to show current settings
+            wallets = self.user_manager.get_user_wallets(user.id)
+
+            if not wallets:
+                await update.message.reply_text(
+                    format_info_message("You have no wallets. Add one first!"),
+                    reply_markup=self.main_keyboard
+                )
+                return
+
+            # Get current threshold for first wallet
+            wallet = wallets[0]
+            threshold = self.user_manager.get_wallet_threshold(wallet.id)
+
+            settings_msg = (
+                "⚙️ *ALERT SETTINGS*\n\n"
+                "📊 *Current Thresholds:*\n"
+                f"  🟡 Warning: {threshold.threshold_warning}%\n"
+                f"  🔴 Critical: {threshold.threshold_critical}%\n"
+                f"  🚨 Urgent: {threshold.threshold_urgent}%\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "💡 *How Alerts Work:*\n"
+                "Alerts trigger when your margin usage reaches these levels.\n\n"
+                "  • *Warning*: Early heads-up\n"
+                "  • *Critical*: Action recommended\n"
+                "  • *Urgent*: Immediate action needed\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "🔧 *Change Threshold:*\n"
+                "Send a number (0-100) to set new warning level.\n\n"
+                "Examples:\n"
+                "  • `75` = Warning at 75%\n"
+                "  • `0.1` = Warning at 0.1% (testing)\n\n"
+                "Critical and Urgent levels adjust automatically (+10%, +15%)."
+            )
+
             await update.message.reply_text(
-                "⚙️ *Settings*\n\n"
-                "Send your desired alert threshold (0-100):\n\n"
-                "Example: `75`",
+                settings_msg,
                 parse_mode='Markdown',
                 reply_markup=self.main_keyboard
             )
@@ -760,17 +805,28 @@ class TelegramBot:
                     return
 
                 # Set threshold for all user's wallets
+                results = []
                 for wallet in wallets:
-                    self.user_manager.set_wallet_threshold(
+                    success, message = self.user_manager.set_wallet_threshold(
                         user.id,
                         wallet.wallet_address,
                         threshold
                     )
+                    results.append((success, message))
+
+                # Get new threshold values to confirm
+                wallet = wallets[0]
+                new_threshold = self.user_manager.get_wallet_threshold(wallet.id)
 
                 await update.message.reply_text(
-                    f"✅ *Threshold Updated*\n\n"
-                    f"🔔 Alert threshold set to *{threshold}%* for all wallets!\n\n"
-                    f"You'll receive alerts when margin ratio reaches this level.",
+                    f"✅ *Threshold Updated Successfully!*\n\n"
+                    f"📊 *New Alert Levels:*\n"
+                    f"  🟡 Warning: {new_threshold.threshold_warning}%\n"
+                    f"  🔴 Critical: {new_threshold.threshold_critical}%\n"
+                    f"  🚨 Urgent: {new_threshold.threshold_urgent}%\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"✅ Applied to {len(wallets)} wallet(s)\n"
+                    f"📡 Alerts will now trigger at these margin usage levels.",
                     parse_mode='Markdown',
                     reply_markup=self.main_keyboard
                 )
