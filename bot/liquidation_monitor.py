@@ -139,6 +139,12 @@ class LiquidationMonitor:
         try:
             logger.warning(f"Fetching data for wallet {wallet_address}")
 
+            # Get wallet from database
+            wallet = self.user_manager.get_wallet_by_address(wallet_address)
+            if not wallet:
+                logger.warning(f"Wallet not found in database: {wallet_address}")
+                return
+
             # Fetch accounts
             accounts = await self.reya_client.get_wallet_accounts(wallet_address)
             logger.warning(f"Found {len(accounts) if accounts else 0} accounts")
@@ -150,6 +156,12 @@ class LiquidationMonitor:
             # Fetch balances
             balance_data = await self.reya_client.get_wallet_balances(wallet_address)
             logger.warning(f"Balance data: {balance_data}")
+
+            # Sync positions - delete closed positions not in API response
+            current_symbols = [pos.get('symbol') for pos in positions_data] if positions_data else []
+            deleted = self.db.sync_wallet_positions(wallet.id, current_symbols)
+            if deleted > 0:
+                logger.warning(f"Removed {deleted} closed positions from database")
 
             # Process data
             if balance_data:
