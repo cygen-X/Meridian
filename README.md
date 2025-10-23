@@ -98,8 +98,8 @@
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/meridian-bot.git
-cd meridian-bot
+git clone https://github.com/cygen-X/Meridian.git
+cd Meridian
 ```
 
 ### 2. Install Dependencies
@@ -348,17 +348,22 @@ mypy .
 
    ```
    Variable Name: TELEGRAM_BOT_TOKEN
-   Value: 8309892025:AAH_FDFW5msO28OHlvNDton9Gq6NOWQWZZ8
+   Value: your_bot_token_here
+   ```
+
+   Example format (get your real token from @BotFather):
+   ```
+   123456789:ABCdefGHIjklMNOpqrsTUVwxyz-1234567890
    ```
 
    ❌ **WRONG** (with quotes):
    ```
-   TELEGRAM_BOT_TOKEN="8309892025:AAH_FDFW5msO28OHlvNDton9Gq6NOWQWZZ8"
+   TELEGRAM_BOT_TOKEN="123456789:ABCdefGHI..."
    ```
 
    ✅ **CORRECT** (without quotes):
    ```
-   TELEGRAM_BOT_TOKEN=8309892025:AAH_FDFW5msO28OHlvNDton9Gq6NOWQWZZ8
+   TELEGRAM_BOT_TOKEN=123456789:ABCdefGHI...
    ```
 
 4. **Optional Variables** (use defaults if not set):
@@ -400,7 +405,7 @@ git push heroku main
 ### Option 3: Docker
 
 ```dockerfile
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 COPY requirements.txt .
@@ -419,13 +424,16 @@ docker run -d --env-file .env meridian-bot
 ### Option 4: VPS (Ubuntu)
 
 ```bash
-# Install Python
+# Install Python 3.11
 sudo apt update
-sudo apt install python3.9 python3-pip
+sudo apt install software-properties-common -y
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3-pip -y
 
 # Clone and setup
-git clone https://github.com/yourusername/meridian-bot.git
-cd meridian-bot
+git clone https://github.com/cygen-X/Meridian.git
+cd Meridian
 pip3 install -r requirements.txt
 
 # Create systemd service
@@ -440,8 +448,8 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/meridian-bot
-ExecStart=/usr/bin/python3 main.py
+WorkingDirectory=/home/ubuntu/Meridian
+ExecStart=/usr/bin/python3.11 main.py
 Restart=always
 
 [Install]
@@ -524,7 +532,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Issues:** [GitHub Issues](https://github.com/yourusername/meridian-bot/issues)
+- **Issues:** [GitHub Issues](https://github.com/cygen-X/Meridian/issues)
 - **Telegram:** Join our community group
 - **Documentation:** Full docs available in the repository
 

@@ -275,6 +275,26 @@ class Database:
             position.id = cursor.lastrowid
             return position
 
+    def sync_wallet_positions(self, wallet_id: int, current_symbols: List[str]):
+        """Delete positions that are no longer in the API response (closed positions)"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if current_symbols:
+                placeholders = ','.join('?' * len(current_symbols))
+                cursor.execute(
+                    f"DELETE FROM positions WHERE wallet_id = ? AND symbol NOT IN ({placeholders})",
+                    [wallet_id] + current_symbols
+                )
+            else:
+                # No positions in API, delete all for this wallet
+                cursor.execute("DELETE FROM positions WHERE wallet_id = ?", (wallet_id,))
+
+            deleted = cursor.rowcount
+            conn.commit()
+            if deleted > 0:
+                logger.info(f"Deleted {deleted} closed positions for wallet_id {wallet_id}")
+            return deleted
+
     def get_wallet_positions(self, wallet_id: int) -> List[Position]:
         """Get all positions for a wallet"""
         with self.get_connection() as conn:
