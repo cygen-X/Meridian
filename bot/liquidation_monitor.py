@@ -399,8 +399,8 @@ class LiquidationMonitor:
                 logger.error(f"User not found for wallet {wallet.wallet_address}")
                 return
 
-            # Format alert message
-            message = format_liquidation_alert(risk_metrics, wallet.wallet_address)
+            # Format alert message with alert level
+            message = format_liquidation_alert(risk_metrics, wallet.wallet_address, alert_level.value)
 
             # Create alert record
             alert = Alert(

@@ -49,9 +49,10 @@ class TelegramBot:
 
         # Persistent menu keyboard
         self.main_keyboard = ReplyKeyboardMarkup([
-            [KeyboardButton("➕ Add Wallet"), KeyboardButton("📊 Status")],
-            [KeyboardButton("💼 Portfolio"), KeyboardButton("📜 History")],
-            [KeyboardButton("⚙️ Settings"), KeyboardButton("❓ Help")]
+            [KeyboardButton("➕ Add Wallet"), KeyboardButton("➖ Remove Wallet")],
+            [KeyboardButton("💼 Portfolio"), KeyboardButton("📊 Status")],
+            [KeyboardButton("📜 History"), KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("❓ Help")]
         ], resize_keyboard=True)
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -721,6 +722,42 @@ class TelegramBot:
             )
             context.user_data['awaiting_wallet'] = True
             return
+        elif text == "➖ Remove Wallet":
+            # Show list of wallets to remove
+            wallets = self.user_manager.get_user_wallets(user.id)
+
+            if not wallets:
+                await update.message.reply_text(
+                    format_info_message("You have no wallets to remove."),
+                    reply_markup=self.main_keyboard
+                )
+                return
+
+            # Show wallet selection
+            wallet_list = []
+            for i, wallet in enumerate(wallets, 1):
+                wallet_short = f"{wallet.wallet_address[:6]}...{wallet.wallet_address[-4:]}"
+                wallet_list.append(f"{i}. `{wallet_short}` - Full: `{wallet.wallet_address}`")
+
+            remove_msg = (
+                "➖ *REMOVE WALLET*\n\n"
+                "📋 *Your Monitored Wallets:*\n"
+                + "\n".join(wallet_list) +
+                "\n\n━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "🗑️ *To remove a wallet:*\n"
+                "Send the full wallet address\n\n"
+                "Or use command:\n"
+                "`/remove_wallet 0x1234...`\n\n"
+                "⚠️ *Warning:* This will stop all monitoring and alerts for that wallet."
+            )
+
+            await update.message.reply_text(
+                remove_msg,
+                parse_mode='Markdown',
+                reply_markup=self.main_keyboard
+            )
+            context.user_data['awaiting_wallet_removal'] = True
+            return
         elif text == "📊 Status":
             await self.status_command(update, context)
             return
@@ -781,6 +818,39 @@ class TelegramBot:
         if context.user_data.get('awaiting_wallet'):
             context.user_data['awaiting_wallet'] = False
             await self._add_wallet_flow(update, context, text)
+            return
+
+        # Check if awaiting wallet removal
+        if context.user_data.get('awaiting_wallet_removal'):
+            context.user_data['awaiting_wallet_removal'] = False
+
+            # Validate wallet address
+            is_valid, result = validate_wallet_address(text)
+            if not is_valid:
+                await update.message.reply_text(
+                    format_error_message(result),
+                    reply_markup=self.main_keyboard
+                )
+                return
+
+            wallet_address = result
+
+            # Remove wallet
+            success = self.user_manager.remove_wallet(user.id, wallet_address)
+
+            if success:
+                await update.message.reply_text(
+                    f"✅ *Wallet Removed Successfully!*\n\n"
+                    f"🗑️ Stopped monitoring: `{wallet_address[:6]}...{wallet_address[-4:]}`\n\n"
+                    f"All alerts for this wallet have been disabled.",
+                    parse_mode='Markdown',
+                    reply_markup=self.main_keyboard
+                )
+            else:
+                await update.message.reply_text(
+                    format_error_message("Wallet not found or already removed."),
+                    reply_markup=self.main_keyboard
+                )
             return
 
         # Check if awaiting threshold
