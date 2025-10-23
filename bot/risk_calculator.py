@@ -169,7 +169,9 @@ class RiskCalculator:
         position: Position,
         account_balance: AccountBalance,
         current_margin_ratio: float,
-        target_ratio: float = 60.0
+        target_ratio: float = 60.0,
+        alert_triggered: bool = False,
+        threshold_warning: float = 80.0
     ) -> List[str]:
         """
         Generate actionable recommendations to reduce risk
@@ -179,12 +181,22 @@ class RiskCalculator:
             account_balance: Current account balance
             current_margin_ratio: Current margin utilization
             target_ratio: Target margin ratio to achieve
+            alert_triggered: Whether an alert was triggered
+            threshold_warning: The warning threshold that triggered alert
 
         Returns: List of recommendation strings
         """
         recommendations = []
 
-        if current_margin_ratio <= target_ratio:
+        # If alert was triggered, show alert-specific message
+        if alert_triggered:
+            recommendations.append(
+                f"⚠️ ALERT: Margin usage ({current_margin_ratio:.1f}%) exceeded threshold ({threshold_warning}%)"
+            )
+            recommendations.append(
+                f"🎯 Recommended action: Reduce risk below {threshold_warning}%"
+            )
+        elif current_margin_ratio <= target_ratio:
             recommendations.append(f"✅ Position is healthy (Risk: {current_margin_ratio:.1f}%)")
             return recommendations
 
