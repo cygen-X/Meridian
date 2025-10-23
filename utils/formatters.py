@@ -30,8 +30,18 @@ def format_position_side(side: str) -> str:
         return "📉 SHORT"
 
 
-def format_risk_level(margin_ratio: float) -> str:
+def format_risk_level(margin_ratio: float, alert_level: Optional[str] = None) -> str:
     """Format risk level with emoji and color indicator"""
+    # If an alert was triggered, show the alert level
+    if alert_level:
+        if alert_level == "urgent":
+            return f"{ALERT_EMOJI['urgent']} 🚨 URGENT ALERT ({margin_ratio:.1f}%)"
+        elif alert_level == "critical":
+            return f"{ALERT_EMOJI['critical']} 🔴 CRITICAL ALERT ({margin_ratio:.1f}%)"
+        elif alert_level == "warning":
+            return f"{ALERT_EMOJI['warning']} 🟡 WARNING ALERT ({margin_ratio:.1f}%)"
+
+    # Default risk level display (no alert triggered)
     if margin_ratio >= 95:
         return f"{ALERT_EMOJI['urgent']} CRITICAL ({margin_ratio:.1f}%)"
     elif margin_ratio >= 90:
@@ -42,13 +52,14 @@ def format_risk_level(margin_ratio: float) -> str:
         return f"{ALERT_EMOJI['success']} HEALTHY ({margin_ratio:.1f}%)"
 
 
-def format_liquidation_alert(risk_metrics: RiskMetrics, wallet_address: str) -> str:
+def format_liquidation_alert(risk_metrics: RiskMetrics, wallet_address: str, alert_level: Optional[str] = None) -> str:
     """
     Format liquidation risk alert message
 
     Args:
         risk_metrics: Risk metrics data
         wallet_address: Wallet address
+        alert_level: Alert severity level (warning/critical/urgent)
 
     Returns: Formatted alert message
     """
@@ -74,7 +85,7 @@ def format_liquidation_alert(risk_metrics: RiskMetrics, wallet_address: str) -> 
         lines.append(f"Current Price: {format_price(position.mark_price)}")
 
     lines.extend([
-        f"Margin Ratio: {format_risk_level(balance.margin_ratio)}",
+        f"Margin Ratio: {format_risk_level(balance.margin_ratio, alert_level)}",
         f"Liquidation Price: {format_price(risk_metrics.liquidation_price)}",
         f"Distance to Liquidation: {format_percentage(risk_metrics.distance_to_liquidation)}",
     ])
@@ -218,35 +229,43 @@ def format_help_message() -> str:
     """Format help message with all commands"""
     return """
 📚 MERIDIAN BOT COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-👛 Wallet Management:
+👛 *Wallet Management:*
 /add_wallet <address> - Start monitoring a wallet
 /remove_wallet <address> - Stop monitoring a wallet
 
-📊 Status & Monitoring:
+📊 *Status & Monitoring:*
 /status - View all monitored positions
 /portfolio - Complete portfolio summary
 /history - Alert history (last 24h)
 
-⚙️ Settings:
-/set_alert_threshold <percentage> - Set custom alert threshold (e.g., 75)
-  Default thresholds: 80% (warning), 90% (critical), 95% (urgent)
+⚙️ *Settings:*
+/set_alert_threshold <percentage> - Customize alert threshold
+  Example: `/set_alert_threshold 75`
+  Default: 80% (warning), 90% (critical), 95% (urgent)
 
-❓ Help:
-/help - Show this message
-/start - Show welcome message
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-💡 Example Usage:
-/add_wallet 0x1234567890abcdef1234567890abcdef12345678
-/set_alert_threshold 75
-/status
+💡 *Example Usage:*
+1. Add wallet: `/add_wallet 0x1234...5678`
+2. Set threshold: `/set_alert_threshold 75`
+3. Check status: `/portfolio`
 
-🔔 Alert Levels:
-🟡 Warning (80%) - Position requires attention
-🔴 Critical (90%) - Position at high risk
-🚨 Urgent (95%) - Liquidation imminent!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Need help? Visit: https://github.com/your-repo/meridian
+🔔 *Alert Levels:*
+  🟡 Warning - Position requires attention
+  🔴 Critical - Position at high risk
+  🚨 Urgent - Liquidation imminent!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 *Links:*
+  📖 GitHub: https://github.com/cygen-X/Meridian
+  💬 Reya Discord: https://discord.com/invite/reyaxyz
+
+🆘 Need help? Join the Reya Discord community!
 """
 
 
