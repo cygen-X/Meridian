@@ -330,12 +330,18 @@ class RiskCalculator:
         Returns: Dictionary with portfolio risk metrics
         """
         if not positions:
+            logger.warning(f"No positions found, returning balance data only")
             return {
                 "total_positions": 0,
                 "overall_margin_ratio": 0.0,
+                "margin_ratio": 0.0,
                 "positions_at_risk": 0,
                 "total_exposure": 0.0,
-                "most_risky_position": None
+                "most_risky_position": None,
+                "total_margin": account_balance.total_margin,
+                "available_margin": account_balance.available_margin,
+                "used_margin": account_balance.used_margin,
+                "unrealized_pnl": account_balance.unrealized_pnl
             }
 
         total_exposure = sum(
