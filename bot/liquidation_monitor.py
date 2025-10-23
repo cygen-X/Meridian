@@ -340,10 +340,25 @@ class LiquidationMonitor:
 
                         if should_alert:
                             logger.warning(f"📤 Sending alert to user for {position.symbol}")
+
+                            # Recalculate recommendations with alert context
+                            alert_recommendations = self.risk_calculator.generate_recommendations(
+                                position,
+                                balance,
+                                balance.margin_ratio,
+                                alert_triggered=True,
+                                threshold_warning=threshold.threshold_warning
+                            )
+
+                            # Update risk_metrics with alert-aware recommendations
+                            from dataclasses import replace
+                            risk_metrics = replace(risk_metrics, recommended_actions=alert_recommendations)
+
                             await self._send_alert(
                                 wallet,
                                 risk_metrics,
-                                alert_level
+                                alert_level,
+                                threshold
                             )
                         else:
                             logger.warning(f"⏭️ Alert skipped (too soon) for {position.symbol}")
@@ -389,7 +404,8 @@ class LiquidationMonitor:
         self,
         wallet,
         risk_metrics,
-        alert_level: AlertSeverity
+        alert_level: AlertSeverity,
+        threshold=None
     ):
         """Send alert to user via Telegram"""
         try:

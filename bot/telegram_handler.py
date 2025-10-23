@@ -431,7 +431,7 @@ class TelegramBot:
 
         # Format and send
         message = format_alert_history(all_alerts)
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(message, parse_mode='Markdown', reply_markup=self.main_keyboard)
 
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle button callbacks"""
